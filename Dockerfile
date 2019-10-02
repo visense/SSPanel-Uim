@@ -9,7 +9,7 @@ RUN cp config/.config.example.php config/.config.php && \
     chmod -R 777 /var/www/storage/framework/smarty/compile/ && \
     curl -SL https://getcomposer.org/installer -o composer-setup.php && \
     php composer-setup.php && \
-    php composer.phar install && \
+    php composer.phar install --ignore-platform-reqs && \
     php xcat initQQWry && \
     php xcat initdownload && \
     crontab -l | { cat; echo "30 22 * * * php /var/www/xcat sendDiaryMail"; } | crontab - && \
