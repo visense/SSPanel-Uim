@@ -30,7 +30,6 @@ class AdminController extends UserController
         return $this->view()->assign('nodes', $nodes)->display('admin/node.tpl');
     }
 
-
     public function editConfig($request, $response, $args)
     {
         return (new ChenPay())->editConfig();
@@ -60,7 +59,7 @@ class AdminController extends UserController
         $table_config['ajax_url'] = 'payback/ajax';
         return $this->view()->assign('table_config', $table_config)->display('admin/invite.tpl');
     }
-
+    
     public function addInvite($request, $response, $args)
     {
         $num = $request->getParam('num');

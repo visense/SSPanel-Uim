@@ -13,25 +13,52 @@ class TelegramProcess
 {
     private static $all_rss = [
         'clean_link' => '重置订阅',
-        '?mu=0' => 'SSR普通订阅',
-        '?mu=1' => 'SSR单端口订阅',
-        '?mu=3' => 'SS/SSD订阅',
-        '?mu=2' => 'V2ray订阅',
-        '?mu=4' => 'Clash订阅'];
+        '?sub=1' => 'SSR订阅',
+        '?sub=3' => 'V2ray订阅',
+        '?sub=5' => 'Shadowrocket',
+        '?sub=4' => 'Kitsunebi or V2rayNG or BifrostV',
+        '?surge=2' => 'Surge 2.x',
+        '?surge=3' => 'Surge 3.x',
+        '?ssd=1' => 'SSD',
+        '?clash=1' => 'Clash',
+        '?surfboard=1' => 'Surfboard',
+        '?quantumult=3' => 'Quantumult(完整配置)'
+    ];
 
-    private static function callback_bind_method($bot, $message, $command)
+    private static function callback_bind_method($bot, $callback)
     {
+        $callback_data = $callback->getData();
+        $message = $callback->getMessage();
         $reply_to = $message->getMessageId();
-        $user = User::where('telegram_id', $message->getFrom()->getId())->first();
+        $user = User::where('telegram_id', $callback->getFrom()->getId())->first();
         $reply_message = '？？？';
         if ($user != null) {
             switch (true) {
-                case (strpos($command, 'mu')):
+                case $callback_data == '?quantumult=3':
+                    $ssr_sub_token = LinkController::GenerateSSRSubCode($user->id, 0);
+                    $baseUrl = Config::get('baseUrl');
+                    $keyboard = new \TelegramBot\Api\Types\Inline\InlineKeyboardMarkup(
+                        [
+                            [
+                                ['text' => '点击跳转', 'url' => $baseUrl . '/jump.html?url=quantumult://settings?configuration=clipboard']
+                            ]
+                        ]
+                    );
+                    $bot->sendMessage($user->get_user_attributes('telegram_id'), "两种方法:\n 方法一:\n  1.点击打开以下配置文件\n  2. 选择分享->拷贝到\"Quantumult\"\n  3.选择更新配置\n 方法二:\n  1.长按配置文件\n  2. 选择更多->分享->拷贝\n  3.点击跳转APP,到Quan中保存", $parseMode = null, $disablePreview = false, $replyToMessageId = null, $replyMarkup = $keyboard);
+                    $filepath = '/tmp/tg_' . $ssr_sub_token . '.txt';
+                    $fh = fopen($filepath, 'w+');
+                    $string = LinkController::GetQuantumult($user, 3);
+                    fwrite($fh, $string);
+                    fclose($fh);
+                    $bot->sendDocument($user->get_user_attributes('telegram_id'), new \CURLFile($filepath, '', 'quantumult_' . $ssr_sub_token . '.conf'));
+                    unlink($filepath);
+                    break;
+                case (strpos($callback_data, 'sub') or strpos($callback_data, 'surge') or strpos($callback_data, 'clash') or strpos($callback_data, 'surfboard')):
                     $ssr_sub_token = LinkController::GenerateSSRSubCode($user->id, 0);
                     $subUrl = Config::get('subUrl');
-                    $reply_message = self::$all_rss[$command] . ': ' . $subUrl . $ssr_sub_token . $command . PHP_EOL;
+                    $reply_message = self::$all_rss[$callback_data] . ': ' . $subUrl . $ssr_sub_token . $callback_data . PHP_EOL;
                     break;
-                case ($command == 'clean_link'):
+                case ($callback_data == 'clean_link'):
                     $user->clean_link();
                     $reply_message = '链接重置成功';
                     break;
@@ -75,7 +102,7 @@ class TelegramProcess
                     foreach (self::$all_rss as $key => $value) {
                         $keys[] = [['text' => $value, 'callback_data' => $key]];
                     }
-                    $reply['mark'] = new InlineKeyboardMarkup(
+                    $reply['markup'] = new InlineKeyboardMarkup(
                         $keys
                     );
                     break;
@@ -118,7 +145,7 @@ class TelegramProcess
 						/help 获取帮助信息
 						/rss 获取节点订阅';
                     if ($user == null) {
-                        $help_list .= PHP_EOL . '您未绑定本站账号，您可以进入网站的“资料编辑”，在右下方绑定您的账号';
+                        $reply['message'] .= PHP_EOL . '您未绑定本站账号，您可以进入网站的“资料编辑”，在右下方绑定您的账号';
                     }
                     break;
                 default:
@@ -233,6 +260,9 @@ class TelegramProcess
                 case 'prpr':
                     $reply = self::needbind_method($bot, $message, $command, $user, $reply_to);
                     break;
+                case 'rss':
+                    $reply['message'] = '请私聊机器人使用该命令';
+                    break;
                 case 'help':
                     $reply['message'] = '命令列表：
 						/ping  获取群组ID
@@ -260,7 +290,7 @@ class TelegramProcess
             }
         }
 
-        $bot->sendMessage($message->getChat()->getId(), $reply['message'], $parseMode = null, $disablePreview = false, $replyToMessageId = $reply_to, $replyMarkup = $reply['mark']);
+        $bot->sendMessage($message->getChat()->getId(), $reply['message'], $parseMode = null, $disablePreview = false, $replyToMessageId = $reply_to, $replyMarkup = $reply['markup']);
         $bot->sendChatAction($message->getChat()->getId(), '');
     }
 
@@ -283,15 +313,11 @@ class TelegramProcess
             }), static function () {
                 return true;
             });
-            $bot->on(static function ($update) use ($bot) {
-                $callback = $update->getCallbackQuery();
-                //Answer to Telegram, you make answer in the end, or in the beginning.
-                $message = $callback->getMessage();
-                $message->setFrom($callback->getFrom());
-                TelegramProcess::callback_bind_method($bot, $message, $callback->getData());
-            }, static function ($update) {
-                $callback = $update->getCallbackQuery();
-                return !($callback === null || $callback->getData() == '');
+
+            $bot->on($bot->getCallbackQueryEvent(function ($callback) use ($bot) {
+                TelegramProcess::callback_bind_method($bot, $callback);
+            }), function () {
+                return true;
             });
 
             $bot->run();

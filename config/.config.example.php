@@ -16,7 +16,7 @@ $System_Config['version']='1';	//仅当涉及【需要修改config以外的文�
 
 //基本设置--------------------------------------------------------------------------------------------
 $System_Config['key'] = '1145141919810';						//!!! 瞎 jb 修改此key为随机字符串确保网站安全 !!!
-$System_Config['debug'] =  'false';								//正式环境请确保为 false
+$System_Config['debug'] =  false;								//正式环境请确保为 false
 $System_Config['appName'] = 'sspanel';							//站点名称
 $System_Config['baseUrl'] = 'http://url.com';					//站点地址
 $System_Config['subUrl'] = $System_Config['baseUrl'].'/link/';	//订阅地址，如需和站点名称相同，请不要修改
@@ -27,6 +27,8 @@ $System_Config['db_database'] = 'sspanel';						//数据库名
 $System_Config['db_username'] = 'root';							//数据库用户名
 $System_Config['db_password'] = 'sspanel';						//用户名对应的密码
 
+//新旧首页设置--------------------------------------------------------------------------------------------
+$System_Config['newIndex'] = 'true';	//使用新的 Node.js 开发的首页请填写 true，其他值为使用先前的首页，如您使用其他主题请保持 true
 
 //邮件设置--------------------------------------------------------------------------------------------
 $System_Config['mailDriver'] = 'none';	//发送邮件方式：none / mailgun / smtp / sendgrid
@@ -112,7 +114,19 @@ $System_Config['account_expire_delete_days']='-1';		//账户到期几天之后�
 $System_Config['enable_kill']='true';					//是否允许用户注销账户
 $System_Config['notify_limit_mode'] = 'false';			//false为关闭，per为按照百分比提醒，mb为按照固定剩余流量提醒
 $System_Config['notify_limit_value'] = '20';			//当上一项为per时，此处填写百分比；当上一项为mb时，此处填写流量
-$System_Config['mergeSub'] = 'false';						//合并订阅设置 可选项 false / true
+$System_Config['mergeSub'] = 'false';					//合并订阅设置 可选项 false / true，此项在 Rico && GeekQu 仓库已废弃
+$System_Config['protocol_specify'] = 'true';			//允许用户自行切换加密、协议、混淆，允许请填写 true，禁止用户自行修改将使用下方配置的方案
+$System_Config['keep_connect'] = 'false';				//是否开启用户流量耗尽后降低速率至 1Mbps 而不断网
+
+#加密、协议、混淆切换方案
+$System_Config['user_agreement_scheme'] = [
+    ['id'=>1,'name'=>'SS 推荐配置','method'=>'chacha20-ietf-poly1305','protocol'=>'origin','obfs'=>'plain'],
+    ['id'=>2,'name'=>'SSR 推荐配置','method'=>'chacha20-ietf','protocol'=>'auth_aes128_sha1','obfs'=>'http_simple_compatible'],
+    ['id'=>3,'name'=>'SS/SSR 兼容配置','method'=>'chacha20-ietf','protocol'=>'auth_aes128_sha1_compatible','obfs'=>'plain']
+];
+
+$System_Config['subscribeLog'] = 'false';			    //是否记录用户订阅日志
+$System_Config['subscribeLog_keep_days'] = '7';		    //订阅记录保留天数
 
 //Bot 设置--------------------------------------------------------------------------------------------
 #通用
@@ -177,7 +191,7 @@ $System_Config['enable_checkin_captcha'] = 'false';	//启用签到验证码
 
 
 //支付系统设置----------------------------------------------------------------------------------------
-#取值 none | codepay | trimepay | f2fpay | chenAlipay | paymentwall | spay |tomatopay
+#取值 none | codepay | trimepay | f2fpay | chenAlipay | paymentwall | spay |tomatopay | payjs
 $System_Config['payment_system']='none';
 
 #codepay码支付
@@ -216,8 +230,19 @@ $System_Config['trimepay_secret']='';				//AppSecret
 #   客服和技术 24x7 在线支持： https://t.me/joinchat/GLKSKhUnE4GvEAPgqtChAQ
 $System_Config['bitpay_secret']='';
 
+#PayJs
+$System_Config['payjs_mchid']='';
+$System_Config['payjs_key']='';
+
 
 //其他面板显示设置------------------------------------------------------------------------------------------
+
+#用户文档
+$System_Config['enable_documents'] = 'true';	    //是否允许未登陆用户查看文档中心
+$System_Config['documents_name'] = $System_Config['appName'] . ' 文档中心';	    //文档中心名称
+$System_Config['remote_documents'] = 'true';	    //是否从远程加载文档中心，否的话请执行 php xcat initdocuments
+$System_Config['documents_source'] = 'https://raw.githubusercontent.com/GeekQu/PANEL_DOC/master/GeekQu';	    //远程文档加载地址
+
 #后台商品列表 销量统计
 $System_Config['sales_period']='30';	//统计指定周期内的销量，值为【expire/任意大于0的整数】
 
@@ -249,12 +274,6 @@ $System_Config['enable_detect_offline']='true';
 $System_Config['enable_detect_offline_useScFtqq']='true';
 
 
-//V2Ray相关设置------------------------------------------------------------------------------------------
-$System_Config['v2ray_port']='443';					//V2Ray端口
-$System_Config['v2ray_protocol']='HTTP/2 + TLS';	//V2Ray协议
-$System_Config['v2ray_alter_id']='32';
-$System_Config['v2ray_level']='0';
-
 //以下所有均为高级设置（一般用不上，不用改---------------------------------------------------------------------
 #杂项
 $System_Config['enable_login_bind_ip']='false';		//是否将登陆线程和IP绑定
@@ -276,6 +295,45 @@ $System_Config['db_charset'] = 'utf8';
 $System_Config['db_collation'] = 'utf8_general_ci';
 $System_Config['db_prefix'] = '';
 $System_Config['muKeyList'] = ['　'];                //多 key 列表
+$System_Config['mu_port_migration'] = 'false';       //为后端直接下发偏移后的端口
+$System_Config['relay_port_migration'] = 'false';    //为中转规则下发偏移后的端口，此项未经测试
+
+// 审计自动封禁开关
+$System_Config['enable_auto_detect_ban'] = 'false';
+
+// 审计封禁判断类型：
+//   - 1 = 仁慈模式，每触碰多少次封禁一次
+//   - 2 = 疯狂模式，累计触碰次数按阶梯进行不同时长的封禁
+$System_Config['auto_detect_ban_type'] = '1';
+
+// 仁慈模式每次执行封禁所需的触发次数
+$System_Config['auto_detect_ban_number'] = '30';
+
+// 仁慈模式每次封禁的时长 (分钟)
+$System_Config['auto_detect_ban_time'] = '60';
+
+// 疯狂模式阶梯
+// key 为触发次数
+//   - type：可选 time 按时间 或 kill 删号
+//   - time：时间，单位分钟
+$System_Config['auto_detect_ban'] = [
+    100 => [
+        'type' => 'time',
+        'time' => '120'
+    ],
+    300 => [
+        'type' => 'time',
+        'time' => '720'
+    ],
+    600 => [
+        'type' => 'time',
+        'time' => '4320'
+    ],
+    1000 => [
+        'type' => 'kill',
+        'time' => '0'
+    ]
+];
 
 #aws
 $System_Config['aws_access_key_id'] = '';
@@ -319,4 +377,30 @@ $System_Config['sspanelAnalysis'] = 'true';
 if ( isset($_SERVER['HTTP_X_FORWARDED_FOR']) ) {
 $list = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
 $_SERVER['REMOTE_ADDR'] = $list[0];
+}
+
+// make replace System_Config with env
+function findKeyName($name) {
+    global $System_Config;
+    foreach($System_Config as $configKey => $configValue) {
+        if (strtoupper($configKey) == $name) {
+            return $configKey;
+        }
+    }
+
+    return NULL;
+}
+
+foreach(getenv() as $envKey => $envValue) {
+    global $System_Config;
+    $envUpKey = strtoupper($envKey);
+    // Key starts with UIM_
+    if (substr($envUpKey, 0 , 4) == "UIM_") {
+        // Vaild env key, set to System_Config
+        $configKey = substr($envUpKey, 4);
+        $realKey = findKeyName($configKey);
+        if ($realKey != NULL) {
+            $System_Config[$realKey] = $envValue;
+        }
+    }
 }

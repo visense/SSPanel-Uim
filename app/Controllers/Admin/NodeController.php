@@ -11,6 +11,7 @@ use App\Utils\CloudflareDriver;
 use App\Services\Config;
 use Ozdemir\Datatables\Datatables;
 use App\Utils\DatatablesHelper;
+use App\Utils\DNSoverHTTPS;
 
 class NodeController extends AdminController
 {
@@ -63,6 +64,9 @@ class NodeController extends AdminController
             $server_list = explode(';', $node->server);
             if (!Tools::is_ip($server_list[0])) {
                 $node->node_ip = gethostbyname($server_list[0]);
+                if ($node->node_ip == "127.0.0.1") {
+                    $node->node_ip = DNSoverHTTPS::gethostbyName($server_list[0]);
+                }
             } else {
                 $node->node_ip = $req_node_ip;
             }
@@ -81,6 +85,10 @@ class NodeController extends AdminController
         $node->node_class = $request->getParam('class');
         $node->node_bandwidth_limit = $request->getParam('node_bandwidth_limit') * 1024 * 1024 * 1024;
         $node->bandwidthlimit_resetday = $request->getParam('bandwidthlimit_resetday');
+
+        if (in_array($node->sort, array(11, 12, 13))) {
+            $node->mu_only = 1;
+        }
 
         $node->save();
 
@@ -152,10 +160,18 @@ class NodeController extends AdminController
             $SS_Node = Node::where('sort', '=', 0)->where('server', '=', $request->getParam('server'))->first();
             if ($SS_Node != null) {
                 if ($SS_Node->node_heartbeat == 0 || time() - $SS_Node->node_heartbeat < 300) {
-                    Radius::AddNas(gethostbyname($request->getParam('server')), $request->getParam('server'));
+                    $ip = gethostbyname($request->getParam('server'));
+                    if ($ip == '127.0.0.1') {
+                        $ip = DNSoverHTTPS::gethostbyName($request->getParam('server'));
+                    }
+                    Radius::AddNas($ip, $request->getParam('server'));
                 }
             } else {
-                Radius::AddNas(gethostbyname($request->getParam('server')), $request->getParam('server'));
+                $ip = gethostbyname($request->getParam('server'));
+                if ($ip == "127.0.0.1") {
+                    $ip = DNSoverHTTPS::gethostbyName($request->getParam('server'));
+                }
+                Radius::AddNas($ip, $request->getParam('server'));
             }
         }
 
@@ -163,6 +179,10 @@ class NodeController extends AdminController
         $node->node_class = $request->getParam('class');
         $node->node_bandwidth_limit = $request->getParam('node_bandwidth_limit') * 1024 * 1024 * 1024;
         $node->bandwidthlimit_resetday = $request->getParam('bandwidthlimit_resetday');
+
+        if (in_array($node->sort, array(11, 12, 13))) {
+            $node->mu_only = 1;
+        }
 
         $node->save();
 

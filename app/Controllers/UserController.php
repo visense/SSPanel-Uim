@@ -23,6 +23,8 @@ use App\Utils\Tools;
 use App\Utils\Radius;
 use App\Models\DetectLog;
 use App\Models\DetectRule;
+use App\Models\NodeOnlineLog;
+use App\Models\NodeInfoLog;
 
 use Exception;
 use voku\helper\AntiXSS;
@@ -35,6 +37,7 @@ use App\Models\BlockIp;
 use App\Models\UnblockIp;
 use App\Models\Payback;
 use App\Models\Relay;
+use App\Models\UserSubscribeLog;
 use App\Utils\QQWry;
 use App\Utils\GA;
 use App\Utils\Geetest;
@@ -42,6 +45,7 @@ use App\Utils\Telegram;
 use App\Utils\TelegramSessionManager;
 use App\Utils\Pay;
 use App\Utils\URL;
+use App\Utils\DatatablesHelper;
 use App\Services\Mail;
 
 /**
@@ -69,8 +73,8 @@ class UserController extends BaseController
 
         $Ann = Ann::orderBy('date', 'desc')->first();
 
-
         return $this->view()
+            ->assign('subInfo', LinkController::getSubinfo($this->user, 0))
             ->assign('ssr_sub_token', $ssr_sub_token)
             ->assign('display_ios_class', Config::get('display_ios_class'))
             ->assign('display_ios_topup', Config::get('display_ios_topup'))
@@ -456,9 +460,12 @@ class UserController extends BaseController
 
         $array_nodes = array();
         $nodes_muport = array();
+        $db = new DatatablesHelper();
+        $infoLogs = $db->query('SELECT * FROM ( SELECT * FROM `ss_node_info` WHERE log_time > ' . (time() - 300) . ' ORDER BY id DESC LIMIT 999999999999 ) t GROUP BY node_id ORDER BY id DESC');
+        $onlineLogs = $db->query('SELECT * FROM ( SELECT * FROM `ss_node_online_log` WHERE log_time > ' . (time() - 300) . ' ORDER BY id DESC LIMIT 999999999999 ) t GROUP BY node_id ORDER BY id DESC');
 
         foreach ($nodes as $node) {
-            if ($node->node_group != $user->node_group && $node->node_group != 0) {
+            if ($user->is_admin == 0 && $node->node_group != $user->node_group && $node->node_group != 0) {
                 continue;
             }
             if ($node->sort == 9) {
@@ -469,19 +476,19 @@ class UserController extends BaseController
             }
             $array_node = array();
 
-            $array_node['id'] = $node->id;
-            $array_node['class'] = $node->node_class;
-            $array_node['name'] = $node->name;
+            $array_node['id']=$node->id;
+            $array_node['class']=$node->node_class;
+            $array_node['name']=$node->name;
             if ($node->sort == 13) {
                 $server = Tools::ssv2Array($node->server);
                 $array_node['server'] = $server['add'];
             } else {
                 $array_node['server'] = $node->server;
             }
-            $array_node['sort'] = $node->sort;
-            $array_node['info'] = $node->info;
-            $array_node['mu_only'] = $node->mu_only;
-            $array_node['group'] = $node->node_group;
+            $array_node['sort']=$node->sort;
+            $array_node['info']=$node->info;
+            $array_node['mu_only']=$node->mu_only;
+            $array_node['group']=$node->node_group;
 
             $array_node['raw_node'] = $node;
             $regex = Config::get('flag_regex');
@@ -493,26 +500,37 @@ class UserController extends BaseController
                 $array_node['flag'] = 'unknown.png';
             }
 
-            $node_online = $node->isNodeOnline();
-            if ($node_online === null) {
+            $sort = $array_node['sort'];
+            $array_node['online_user'] = 0;
+
+            foreach ($onlineLogs as $log) {
+                if ($log['node_id'] != $node->id) {
+                    continue;
+                }
+                if (in_array($sort, array(0, 7, 8, 10, 11, 12, 13))) {
+                    $array_node['online_user'] = $log['online_user'];
+                } else {
+                    $array_node['online_user'] = -1;
+                }
+                break;
+            }
+
+            // check node status
+            // 0: new node; -1: offline; 1: online
+            $node_heartbeat = $node->node_heartbeat + 300;
+            $array_node['online'] = -1;
+            if (!in_array($sort, array(0, 7, 8, 10, 11, 12, 13)) || $node_heartbeat == 300 ) {
                 $array_node['online'] = 0;
-            } elseif ($node_online === true) {
+            } elseif ($node_heartbeat > time()) {
                 $array_node['online'] = 1;
-            } elseif ($node_online === false) {
-                $array_node['online'] = -1;
             }
 
-            if (in_array($node->sort, array(0, 7, 8, 10, 11, 12, 13))) {
-                $array_node['online_user'] = $node->getOnlineUserCount();
-            } else {
-                $array_node['online_user'] = -1;
-            }
-
-            $nodeLoad = $node->getNodeLoad();
-            if (isset($nodeLoad[0]['load'])) {
-                $array_node['latest_load'] = (explode(' ', $nodeLoad[0]['load']))[0] * 100;
-            } else {
-                $array_node['latest_load'] = -1;
+            $array_node['latest_load'] = -1;
+            foreach ($infoLogs as $log) {
+                if ($log['node_id'] == $node->id) {
+                    $array_node['latest_load'] = (explode(' ', $log['load']))[0] * 100;
+                    break;
+                }
             }
 
             $array_node['traffic_used'] = (int)Tools::flowToGB($node->node_bandwidth);
@@ -530,8 +548,15 @@ class UserController extends BaseController
 
             $array_nodes[] = $array_node;
         }
-        return $this->view()->assign('nodes', $array_nodes)->assign('nodes_muport', $nodes_muport)->assign('relay_rules', $relay_rules)->assign('tools', new Tools())->assign('user', $user)->registerClass('URL', URL::class)->display('user/node.tpl');
-    }
+        return $this->view()
+            ->assign('nodes', $array_nodes)
+            ->assign('nodes_muport', $nodes_muport)
+            ->assign('relay_rules', $relay_rules)
+            ->assign('tools', new Tools())
+            ->assign('user', $user)
+            ->registerClass('URL', URL::class)
+            ->display('user/node.tpl');
+	}
 
 
     public function node_old($request, $response, $args)
@@ -789,8 +814,17 @@ class UserController extends BaseController
 
         $config_service = new Config();
 
-        return $this->view()->assign('user', $this->user)->assign('themes', $themes)->assign('isBlock', $isBlock)->assign('Block', $Block)->assign('bind_token', $bind_token)->assign('telegram_bot', Config::get('telegram_bot'))->assign('config_service', $config_service)
-            ->registerClass('URL', URL::class)->display('user/edit.tpl');
+        return $this->view()
+            ->assign('user', $this->user)
+            ->assign('schemes', Config::get('user_agreement_scheme'))
+            ->assign('themes', $themes)
+            ->assign('isBlock', $isBlock)
+            ->assign('Block', $Block)
+            ->assign('bind_token', $bind_token)
+            ->assign('telegram_bot', Config::get('telegram_bot'))
+            ->assign('config_service', $config_service)
+            ->registerClass('URL', URL::class)
+            ->display('user/edit.tpl');
     }
 
 
@@ -1421,7 +1455,6 @@ class UserController extends BaseController
         return $this->echoJson($response, $res);
     }
 
-
     public function updateSSR($request, $response, $args)
     {
         $protocol = $request->getParam('protocol');
@@ -1816,4 +1849,73 @@ class UserController extends BaseController
         ], $expire_in);
         return $response->withStatus(302)->withHeader('Location', $local);
     }
+
+    public function switchType($request, $response, $args)
+    {
+        $user = $this->user;
+
+        $type = $request->getParam('id');
+        $type = trim($type);
+
+        $scheme = [];
+        $items = Config::get('user_agreement_scheme');
+        foreach ($items as $item) {
+            if ($type == $item['id']) {
+                $scheme = $item;
+            }
+        }
+        if (!isset($scheme['id'])) {
+            $res['ret'] = 0;
+            $res['msg'] = '非法输入';
+            return $response->getBody()->write(json_encode($res));
+        }
+
+        $user->method = $scheme['method'];
+        $user->protocol = $scheme['protocol'];
+        $user->obfs = $scheme['obfs'];
+        $user->save();
+
+        $res['ret'] = 1;
+        $res['msg'] = '切换' . $scheme['name'] . '成功';
+        return $this->echoJson($response, $res);
+    }
+
+    public function getUserAllURL($request, $response, $args)
+    {
+        $user = $this->user;
+        $type = $request->getQueryParams()["type"];
+        $return = '';
+        switch ($type) {
+            case 'ss':
+                $return .= URL::getAllUrl($user, 0, 1).PHP_EOL;
+            break;
+            case 'ssr':
+                $return .= URL::getAllUrl($user, 0, 0).PHP_EOL;
+            break;
+            case 'ssd':
+                $return .= URL::getAllSSDUrl($user).PHP_EOL;
+            break;
+            case 'v2ray':
+                $return .= URL::getAllVMessUrl($user).PHP_EOL;
+            break;
+            default:
+                $return .= '悟空别闹！';
+            break;
+        }
+        $newResponse = $response->withHeader('Content-type', ' application/octet-stream; charset=utf-8')->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate')->withHeader('Content-Disposition', ' attachment; filename=node.txt');
+        $newResponse->getBody()->write($return);
+        return $newResponse;
+    }
+
+    public function subscribe_log($request, $response, $args)
+    {
+        $pageNum = $request->getQueryParams()['page'] ?? 1;
+        $logs = UserSubscribeLog::orderBy('id', 'desc')->where('user_id', $this->user->id)->paginate(15, ['*'], 'page', $pageNum);
+        $logs->setPath('/user/subscribe_log');
+
+        $iplocation = new QQWry();
+
+        return $this->view()->assign('logs', $logs)->assign('iplocation', $iplocation)->display('user/subscribe_log.tpl');
+    }
+
 }

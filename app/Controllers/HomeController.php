@@ -3,12 +3,14 @@
 namespace App\Controllers;
 
 use App\Models\InviteCode;
+use App\Services\Auth;
 use App\Services\Config;
 use App\Utils\AliPay;
 use App\Utils\TelegramSessionManager;
 use App\Utils\TelegramProcess;
 use App\Utils\Spay_tool;
 use App\Utils\Geetest;
+use App\Utils\Tools;
 
 /**
  *  HomeController
@@ -41,16 +43,20 @@ class HomeController extends BaseController
             $login_number = '';
         }
 
-        return $this->view()
-            ->assign('geetest_html', $GtSdk)
-            ->assign('login_token', $login_token)
-            ->assign('login_number', $login_number)
-            ->assign('telegram_bot', Config::get('telegram_bot'))
-            ->assign('enable_logincaptcha', Config::get('enable_login_captcha'))
-            ->assign('enable_regcaptcha', Config::get('enable_reg_captcha'))
-            ->assign('base_url', Config::get('baseUrl'))
-            ->assign('recaptcha_sitekey', $recaptcha_sitekey)
-            ->display('index.tpl');
+        if (Config::get('newIndex') != 'true' && Config::get('theme') == 'material') {
+            return $this->view()->display('indexold.tpl');
+        } else {
+            return $this->view()
+                ->assign('geetest_html', $GtSdk)
+                ->assign('login_token', $login_token)
+                ->assign('login_number', $login_number)
+                ->assign('telegram_bot', Config::get('telegram_bot'))
+                ->assign('enable_logincaptcha', Config::get('enable_login_captcha'))
+                ->assign('enable_regcaptcha', Config::get('enable_reg_captcha'))
+                ->assign('base_url', Config::get('baseUrl'))
+                ->assign('recaptcha_sitekey', $recaptcha_sitekey)
+                ->display('index.tpl');
+        }
     }
 
     public function indexold()
@@ -65,8 +71,7 @@ class HomeController extends BaseController
     }
 
     public function down()
-    {
-    }
+    { }
 
     public function tos()
     {
@@ -85,7 +90,7 @@ class HomeController extends BaseController
         if ($token == Config::get('telegram_request_token')) {
             TelegramProcess::process();
         } else {
-            echo('不正确请求！');
+            echo ('不正确请求！');
         }
     }
 
@@ -126,5 +131,129 @@ class HomeController extends BaseController
             return $response->getBody()->write(json_encode($res));
         }
         return $response->getBody()->write(json_encode(['res' => AliPay::setOrder($sn, $url)]));
+    }
+
+    public function getDocCenter($request, $response, $args)
+    {
+        $user = Auth::getUser();
+        if (!$user->isLogin && Config::get('enable_documents') != 'true') {
+            $newResponse = $response->withStatus(302)->withHeader('Location', '/');
+            return $newResponse;
+        }
+        $basePath = Config::get('remote_documents') == 'true' ? Config::get('documents_source') : '/docs/GeekQu';
+        return $this->view()
+            ->assign('appName', Config::get('documents_name'))
+            ->assign('basePath', $basePath)
+            ->display('doc/index.tpl');
+    }
+
+    public function getSubLink($request, $response, $args)
+    {
+        $user = Auth::getUser();
+        if (!$user->isLogin) {
+            return $msg = '!> ₍₍ ◝(・ω・)◟ ⁾⁾ 您没有登录噢，[点击此处登录](/auth/login \':ignore target=_blank\') 之后再刷新就阔以了啦';
+        } else {
+            $subInfo = LinkController::getSubinfo($user, 0);
+            switch ($request->getParam('type')) {
+                case 'ssr':
+                    $msg = [
+                        '**订阅链接：**',
+                        '```',
+                        $subInfo['ssr'] . '&extend=1',
+                        '```'
+                    ];
+                    break;
+                case 'v2ray':
+                    $msg = [
+                        '**订阅链接：**',
+                        '```',
+                        $subInfo['v2ray'] . '&extend=1',
+                        '```'
+                    ];
+                    break;
+                case 'ssd':
+                    $msg = [
+                        '**订阅链接：**',
+                        '```',
+                        $subInfo['ssd'],
+                        '```'
+                    ];
+                    break;
+                case 'clash':
+                    $msg = [
+                        '**订阅链接：**[[点击下载配置]](' . $subInfo['clash'] . ')',
+                        '```',
+                        $subInfo['clash'],
+                        '```'
+                    ];
+                    break;
+                case 'surge':
+                    $msg = [
+                        '**Surge Version 2.x 托管配置链接：**[[iOS 点击此处一键添加]](surge:///install-config?url=' . urlencode($subInfo['surge2']) . ')',
+                        '```',
+                        $subInfo['surge2'],
+                        '```',
+                        '**Surge Version 3.x 托管配置链接：**[[iOS 点击此处一键添加]](surge3:///install-config?url=' . urlencode($subInfo['surge3']) . ')',
+                        '```',
+                        $subInfo['surge3'],
+                        '```'
+                    ];
+                    break;
+                case 'kitsunebi':
+                    $msg = [
+                        '**包含 ss、v2ray 的合并订阅链接：**',
+                        '```',
+                        $subInfo['kitsunebi'] . '&extend=1',
+                        '```'
+                    ];
+                    break;
+                case 'surfboard':
+                    $msg = [
+                        '**托管配置链接：**',
+                        '```',
+                        $subInfo['surfboard'],
+                        '```'
+                    ];
+                    break;
+                case 'quantumult_sub':
+                    $msg = [
+                        '**ssr 订阅链接：**[[iOS 点击此处一键添加]](quantumult://configuration?server=' . Tools::base64_url_encode($subInfo['ssr']) . ')',
+                        '```',
+                        $subInfo['ssr'],
+                        '```',
+                        '**V2ray 订阅链接：**[[iOS 点击此处一键添加]](quantumult://configuration?server=' . Tools::base64_url_encode($subInfo['quantumult_v2']) . ')',
+                        '```',
+                        $subInfo['quantumult_v2'],
+                        '```'
+                    ];
+                    break;
+                case 'quantumult_conf':
+                    $msg = [
+                        '**导入 ss、ssr、v2ray 以及分流规则的配置链接：**',
+                        '```',
+                        $subInfo['quantumult_sub'],
+                        '```',
+                        '**导入类似 Surge、Clash 使用自定义策略组的配置链接：**',
+                        '```',
+                        $subInfo['quantumult_conf'],
+                        '```'
+                    ];
+                    break;
+                case 'shadowrocket':
+                    $msg = [
+                        '**包含 ss、ssr、v2ray 的合并订阅链接：**[[iOS 点击此处一键添加]](sub://' . base64_encode($subInfo['shadowrocket']) . ')',
+                        '```',
+                        $subInfo['shadowrocket'],
+                        '```'
+                    ];
+                    break;
+                default:
+                    $msg = [
+                        '获取失败了呢...，请联系管理员。'
+                    ];
+                    break;
+            }
+        }
+        return implode(PHP_EOL, $msg);
     }
 }

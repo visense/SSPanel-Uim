@@ -9,17 +9,11 @@ use App\Middleware\Mu;
 use App\Middleware\Mod_Mu;
 use Zeuxisoo\Whoops\Provider\Slim\WhoopsMiddleware;
 
-// config
-$debug = false;
-if (defined('DEBUG')) {
-    $debug = true;
-}
-
 $configuration = [
     'settings' => [
-        'debug' => $debug,
+        'debug' => DEBUG,
         'whoops.editor' => 'sublime',
-        'displayErrorDetails' => $debug
+        'displayErrorDetails' => DEBUG
     ]
 ];
 
@@ -42,7 +36,7 @@ $container['notAllowedHandler'] = static function ($c) {
     };
 };
 
-if ($debug == false) {
+if (DEBUG == false) {
     $container['errorHandler'] = static function ($c) {
         return static function ($request, $response, $exception) use ($c) {
             return $response->withAddedHeader('Location', '/500');
@@ -84,6 +78,9 @@ $app->group('/user', function () {
 
     $this->get('/detect', App\Controllers\UserController::class . ':detect_index');
     $this->get('/detect/log', App\Controllers\UserController::class . ':detect_log');
+
+    // 订阅记录
+    $this->get('/subscribe_log', App\Controllers\UserController::class . ':subscribe_log');
 
     $this->get('/disable', App\Controllers\UserController::class . ':disable');
 
@@ -143,6 +140,12 @@ $app->group('/user', function () {
     $this->get('/url_reset', App\Controllers\UserController::class . ':resetURL');
 
     $this->get('/inviteurl_reset', App\Controllers\UserController::class . ':resetInviteURL');
+
+    // Switch Type || SS/SSR
+    $this->post('/switchtype', App\Controllers\UserController::class . ':switchType');
+
+    // getUserAllURL
+    $this->get('/getUserAllURL', App\Controllers\UserController::class . ':getUserAllURL');
 
     //Reconstructed Payment System
     $this->post('/payment/purchase', App\Services\Payment::class . ':purchase');
@@ -268,6 +271,14 @@ $app->group('/admin', function () {
     $this->post('/login/ajax', App\Controllers\Admin\IpController::class . ':ajax_login');
     $this->post('/alive/ajax', App\Controllers\Admin\IpController::class . ':ajax_alive');
 
+    // Subscribe Log Mange
+    $this->get('/subscribe', App\Controllers\Admin\SubscribeLogController::class . ':index');
+    $this->post('/subscribe/ajax', App\Controllers\Admin\SubscribeLogController::class . ':ajax_subscribe_log');
+
+    // Detect Ban Mange
+    $this->get('/detect/ban', App\Controllers\Admin\DetectBanLogController::class . ':index');
+    $this->post('/detect/ban/ajax', App\Controllers\Admin\DetectBanLogController::class . ':ajax_log');
+
     // Code Mange
     $this->get('/code', App\Controllers\Admin\CodeController::class . ':index');
     $this->get('/code/create', App\Controllers\Admin\CodeController::class . ':create');
@@ -390,6 +401,14 @@ $app->group('/admin', function () {
     $this->post('/saveConfig', App\Controllers\AdminController::class . ':saveConfig');
 })->add(new Admin());
 // chenPay end
+
+//doc
+$app->group('/doc', function () {
+    $this->get('', App\Controllers\HomeController::class . ':getDocCenter');
+    $this->get('/', App\Controllers\HomeController::class . ':getDocCenter');
+});
+$app->get('/sublink', App\Controllers\HomeController::class . ':getSubLink');
+//doc end
 
 // Run Slim Routes for App
 $app->run();

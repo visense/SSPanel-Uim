@@ -4,16 +4,16 @@ export default {
       return this.subUrl + this.ssrSubToken
     },
     suburlMu0: function () {
-      return this.suburlBase + '?mu=0'
+      return this.suburlBase + '?sub=1'
     },
     suburlMu1: function () {
-      return this.suburlBase + '?mu=1'
+      return this.suburlBase + '?sub=1'
     },
     suburlMu3: function () {
-      return this.suburlBase + '?mu=3'
+      return this.suburlBase + '?ssd=1'
     },
     suburlMu2: function () {
-      return this.suburlBase + '?mu=2'
+      return this.suburlBase + '?sub=3'
     }
   },
   data: function () {
@@ -42,7 +42,7 @@ export default {
             href: '#',
             id: 'AGENT_1_3_1'
           }],
-          Ios: [{
+          iOS: [{
             agentName: 'Potatso Lite',
             href: '#',
             id: 'AGENT_1_4_1'
