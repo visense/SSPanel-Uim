@@ -128,7 +128,7 @@ install_main2(){
     mkdir -p /opt/sspanel && cd /opt/sspanel
     rm -f docker-compose.yml
     docker rmi -f baiyuetribe/sspanel:dev  
-    wget https://raw.githubusercontent.com/visense/SSPanel-Uim/visense-patch-1/docker-compose-dev.yml
+    wget https://raw.githubusercontent.com/visense/SSPanel-Uim/visense-patch-1/docker-compose.yml
     blue "配置文件获取成功"
     greenbg "首次启动会拉取镜像，国内速度比较慢，请耐心等待完成"
     docker-compose up -d
