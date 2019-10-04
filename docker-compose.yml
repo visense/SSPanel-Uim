@@ -13,7 +13,6 @@ services:
           - /opt/sspanel/code:/sspanel
     phpmyadmin:
         image:"phpmyadmin/phpmyadmin"
-        restart: always
         container_name: phpmyadmin
         networks:
            - backend
