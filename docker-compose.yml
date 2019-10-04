@@ -1,7 +1,7 @@
 version: '3.1'
 services:
     sspanel:
-        image: "visense/sspanel:dev"
+        image: "visense/sspanel:master"
         restart: always
         container_name: sspanel         
         networks:
@@ -20,7 +20,7 @@ services:
         ports:
           - 8080:80
         depends_on:
-          - mysql  
+          - sspanel  
     mysql:
         image: "mysql:5.6"
         restart: always
