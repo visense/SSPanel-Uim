@@ -1,7 +1,7 @@
 version: '3.1'
 services:
     sspanel:
-        image: "visense/sspanel:master"
+        image: "visense/sspanel:dev"
         restart: always
         container_name: sspanel         
         networks:
